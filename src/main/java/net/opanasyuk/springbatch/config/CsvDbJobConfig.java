@@ -10,15 +10,8 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
-import org.springframework.batch.item.database.ItemSqlParameterSourceProvider;
-import org.springframework.batch.item.database.JdbcBatchItemWriter;
-import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.LineMapper;
-import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
-import org.springframework.batch.item.file.mapping.DefaultLineMapper;
-import org.springframework.batch.item.file.mapping.FieldSetMapper;
-import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.batch.item.file.transform.LineTokenizer;
+import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
+import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,59 +28,25 @@ public class CsvDbJobConfig {
             "VALUES (:firstName, :lastName, :email)";
 
     @Bean
-    public ItemReader<Student> csvFileItemReader() {
-        FlatFileItemReader<Student> csvFileReader = new FlatFileItemReader<>();
-        csvFileReader.setResource(new ClassPathResource("students.csv"));
-        csvFileReader.setLinesToSkip(1);
-        csvFileReader.setStrict(true);
-
-        LineMapper<Student> studentLineMapper = createStudentLineMapper();
-        csvFileReader.setLineMapper(studentLineMapper);
-
-        return csvFileReader;
-    }
-
-    private LineMapper<Student> createStudentLineMapper() {
-        DefaultLineMapper<Student> studentLineMapper = new DefaultLineMapper<>();
-
-        LineTokenizer studentLineTokenizer = createStudentLineTokenizer();
-        studentLineMapper.setLineTokenizer(studentLineTokenizer);
-
-        FieldSetMapper<Student> studentInformationMapper = createStudentInformationMapper();
-        studentLineMapper.setFieldSetMapper(studentInformationMapper);
-
-        return studentLineMapper;
-    }
-
-    private LineTokenizer createStudentLineTokenizer() {
-        DelimitedLineTokenizer studentLineTokenizer = new DelimitedLineTokenizer();
-        studentLineTokenizer.setDelimiter(",");
-        studentLineTokenizer.setNames(new String[]{"firstName", "lastName", "email"});
-        return studentLineTokenizer;
-    }
-
-    private FieldSetMapper<Student> createStudentInformationMapper() {
-        BeanWrapperFieldSetMapper<Student> studentInformationMapper = new BeanWrapperFieldSetMapper<>();
-        studentInformationMapper.setTargetType(Student.class);
-        return studentInformationMapper;
+    public ItemReader<Student> csvFileItemReader() throws Exception {
+        return new FlatFileItemReaderBuilder<Student>()
+                .name("csvFileReader")
+                .resource(new ClassPathResource("students.csv"))
+                .linesToSkip(1)
+                .delimited()
+                .names(new String[]{"firstName", "lastName", "email"})
+                .targetType(Student.class)
+                .build();
     }
 
     @Bean
     public ItemWriter<Student> csvFileDatabaseItemWriter(DataSource dataSource, NamedParameterJdbcTemplate jdbcTemplate) {
-        JdbcBatchItemWriter<Student> databaseItemWriter = new JdbcBatchItemWriter<>();
-        databaseItemWriter.setDataSource(dataSource);
-        databaseItemWriter.setJdbcTemplate(jdbcTemplate);
-
-        databaseItemWriter.setSql(QUERY_INSERT_STUDENT);
-
-        ItemSqlParameterSourceProvider<Student> sqlParameterSourceProvider = studentSqlParameterSourceProvider();
-        databaseItemWriter.setItemSqlParameterSourceProvider(sqlParameterSourceProvider);
-
-        return databaseItemWriter;
-    }
-
-    private ItemSqlParameterSourceProvider<Student> studentSqlParameterSourceProvider() {
-        return new BeanPropertyItemSqlParameterSourceProvider<>();
+        return new JdbcBatchItemWriterBuilder<Student>()
+                .dataSource(dataSource)
+                .namedParametersJdbcTemplate(jdbcTemplate)
+                .sql(QUERY_INSERT_STUDENT)
+                .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
+                .build();
     }
 
     @Bean
